@@ -1,4 +1,4 @@
-use std::io::Cursor;
+use std::io::{Cursor, Error};
 
 use chrono::{DateTime, Utc};
 use rocket::http::{ContentType, Status};
@@ -23,6 +23,12 @@ impl ResponseStatus {
     }
 
     pub fn from<T: Display>(error: T) -> Self {
+        ResponseStatus::internal_server_error(error.to_string())
+    }
+}
+
+impl std::convert::From<std::io::Error> for ResponseStatus {
+    fn from(error: Error) -> Self {
         ResponseStatus::internal_server_error(error.to_string())
     }
 }

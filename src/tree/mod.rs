@@ -1,7 +1,7 @@
+use std::env;
 use std::fs::{read_dir, read_link, DirEntry, FileType, Metadata};
 use std::path::PathBuf;
 use std::str::from_utf8;
-use std::{env, io};
 
 use rocket::http::Status;
 use rocket_contrib::json::Json;
@@ -44,10 +44,7 @@ pub fn get_tree(root: PathBuf, depth: Option<u32>) -> Result<Json<Vec<TreeEntry>
         })
         .and_then(|(absolute_root, files_in_git)| {
             let lines: Vec<&str> = files_in_git.split("\n").collect();
-            match process_tree(&absolute_root, &root, &lines, depth) {
-                Ok(trees) => Ok(Json(trees)),
-                Err(error) => Err(error),
-            }
+            Ok(Json(process_tree(&absolute_root, &root, &lines, depth)?))
         })
 }
 
@@ -66,13 +63,7 @@ fn process_tree(
         .and_then(|entries| {
             let mut results: Vec<TreeEntry> = Vec::new();
             for dir_entry in entries {
-                let processed_dir_entry =
-                    process_dir_entry(dir_entry, absolute_root, root, include_list, depth);
-                if processed_dir_entry.is_err() {
-                    return Err(processed_dir_entry.unwrap_err());
-                }
-                processed_dir_entry
-                    .unwrap()
+                process_dir_entry(&dir_entry?, absolute_root, root, include_list, depth)?
                     .map(|tree_entry| results.push(tree_entry));
             }
             Ok(results)
@@ -80,26 +71,13 @@ fn process_tree(
 }
 
 fn process_dir_entry(
-    dir_entry: io::Result<DirEntry>,
+    dir_entry: &DirEntry,
     absolute_root: &PathBuf,
     root: &PathBuf,
     include_list: &Vec<&str>,
     depth: u32,
 ) -> Result<Option<TreeEntry>, ResponseStatus> {
-    // Unwrap directory entry
-    if dir_entry.is_err() {
-        return Err(ResponseStatus::from(dir_entry.unwrap_err()));
-    }
-    let dir_entry = dir_entry.unwrap();
-
-    // Unwrap entry type
-    let dir_entry_type = dir_entry.file_type();
-    if dir_entry_type.is_err() {
-        return Err(ResponseStatus::from(dir_entry_type.unwrap_err()));
-    }
-    let dir_entry_type = dir_entry_type.unwrap();
-
-    // Build some convenience vars
+    let dir_entry_type = dir_entry.file_type()?;
     let full_path = root.join(dir_entry.file_name());
     let full_path_str = String::from(full_path.to_str().unwrap_or(""));
 
@@ -107,28 +85,19 @@ fn process_dir_entry(
         if dir_entry_type.is_symlink() {
             Ok(Some(build_symlink_entry(&dir_entry, full_path_str)))
         } else if dir_entry_type.is_dir() {
-            let tree_entry = build_dir_tree_entry(
+            Ok(Some(build_dir_tree_entry(
                 absolute_root,
                 include_list,
                 depth,
                 &dir_entry,
                 &full_path,
                 full_path_str,
-            );
-
-            if tree_entry.is_err() {
-                return Err(tree_entry.unwrap_err());
-            }
-            Ok(Some(tree_entry.unwrap()))
+            )?))
         } else if dir_entry_type.is_file() {
-            let metadata_result = dir_entry.metadata();
-            if metadata_result.is_err() {
-                return Err(ResponseStatus::from(metadata_result.unwrap_err()));
-            }
             Ok(Some(build_file_entry(
                 &dir_entry,
                 full_path_str,
-                metadata_result.unwrap(),
+                dir_entry.metadata()?,
             )))
         } else {
             Ok(None)
@@ -170,31 +139,23 @@ fn build_dir_tree_entry(
     full_path: &PathBuf,
     full_path_str: String,
 ) -> Result<TreeEntry, ResponseStatus> {
-    let children;
-    if depth == 0 {
-        children = None;
-    } else {
-        let children_result = process_tree(
-            &absolute_root.join(entry.path()),
-            &full_path,
-            include_list,
-            depth - 1,
-        );
-        if children_result.is_err() {
-            return Err(children_result.unwrap_err());
-        } else {
-            children = Some(children_result.unwrap())
-        }
-    }
-    let dir_tree_entry = TreeEntry {
+    Ok(TreeEntry {
         name: String::from(entry.file_name().to_str().unwrap()),
         full_path: full_path_str,
         entry_type: EntryType::FOLDER,
-        children,
+        children: if depth == 0 {
+            None
+        } else {
+            Some(process_tree(
+                &absolute_root.join(entry.path()),
+                &full_path,
+                include_list,
+                depth - 1,
+            )?)
+        },
         target: None,
         size: None,
-    };
-    Ok(dir_tree_entry)
+    })
 }
 
 fn build_file_entry(entry: &DirEntry, full_path: String, metadata: Metadata) -> TreeEntry {
