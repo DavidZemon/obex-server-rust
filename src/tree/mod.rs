@@ -16,19 +16,19 @@ pub fn get_tree(root: PathBuf, depth: Option<u32>) -> Result<Json<Vec<TreeEntry>
     let depth = depth.unwrap_or(32 * 1024);
 
     obex_path()
-        .join(root)
+        .join(root.clone())
         .canonicalize()
         .map_err(|error| ResponseStatus {
             status: Status::BadRequest,
             message: format!("Bad path: {}", error.to_string()),
         })
-        .and_then(|computed_root| {
-            run(obex_path(), "git", Vec::from(["ls-files"])).map(|output| (computed_root, output))
+        .and_then(|absolute_root| {
+            run(obex_path(), "git", Vec::from(["ls-files"])).map(|output| (absolute_root, output))
         })
-        .and_then(|(computed_root, output)| {
+        .and_then(|(absolute_root, output)| {
             if output.status.success() {
                 Ok((
-                    computed_root,
+                    absolute_root,
                     String::from(from_utf8(&output.stdout).unwrap_or("")),
                 ))
             } else {
@@ -42,9 +42,9 @@ pub fn get_tree(root: PathBuf, depth: Option<u32>) -> Result<Json<Vec<TreeEntry>
                 })
             }
         })
-        .and_then(|(computed_root, files_in_git)| {
+        .and_then(|(absolute_root, files_in_git)| {
             let lines: Vec<&str> = files_in_git.split("\n").collect();
-            match process_tree(computed_root, lines, depth) {
+            match process_tree(absolute_root, root, lines, depth) {
                 Ok(trees) => Ok(Json(trees)),
                 Err(error) => Err(error),
             }
@@ -56,11 +56,12 @@ fn obex_path() -> PathBuf {
 }
 
 fn process_tree(
-    path: PathBuf,
+    absolute_root: PathBuf,
+    root: PathBuf,
     include_list: Vec<&str>,
     depth: u32,
 ) -> Result<Vec<TreeEntry>, ResponseStatus> {
-    read_dir(path.clone())
+    read_dir(absolute_root)
         .map_err(|error| ResponseStatus {
             status: Status::InternalServerError,
             message: error.to_string(),
@@ -69,8 +70,13 @@ fn process_tree(
             let mut results: Vec<TreeEntry> = Vec::new();
             for entry in entries {
                 if let Ok(entry) = entry {
-                    let full_path =
-                        String::from(path.join(entry.file_name()).to_str().unwrap_or(""));
+                    let full_path;
+                    if root == PathBuf::from(".") {
+                        full_path = String::from(entry.file_name().to_str().unwrap_or(""));
+                    } else {
+                        full_path =
+                            String::from(root.join(entry.file_name()).to_str().unwrap_or(""));
+                    }
 
                     if include_list.contains(&full_path.as_str()) {
                         if let Ok(file_type) = entry.file_type() {
@@ -116,9 +122,14 @@ fn process_tree(
                                 }
                             }
                         }
+                    } else {
+                        println!(
+                            "Ignoring path because it is not in the whitelist: {}",
+                            full_path
+                        )
                     }
                 }
             }
-            return results;
+            results
         })
 }
