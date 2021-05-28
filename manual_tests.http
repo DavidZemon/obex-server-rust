@@ -1,0 +1,9 @@
+GET http://localhost:8000/api/tree
+
+###
+
+GET http://localhost:8000/api/tree/foobar
+
+###
+
+GET http://localhost:8000/api/tree/readme.md

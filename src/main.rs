@@ -3,61 +3,37 @@
 #[macro_use]
 extern crate rocket;
 
-use std::env;
-use std::io;
 use std::path::PathBuf;
-use std::process::Command;
 
-use rocket::response::status::BadRequest;
 use rocket_contrib::json::Json;
+use rocket_contrib::serve::StaticFiles;
 
-use models::{EntryType, TreeEntry};
+use tree::get_tree;
+
+use crate::models::TreeEntry;
+use crate::response_status::ResponseStatus;
 
 mod models;
-mod responder;
+mod response_status;
+mod tree;
+mod utils;
 
-const DEFAULT_OBEX_ROOT: &str = "/tmp/obex";
-
-fn from_root(path: PathBuf) -> io::Result<PathBuf> {
-    let obex_root = PathBuf::from(env::var("OBEX_ROOT").unwrap_or(String::from("/tmp/obex")));
-    obex_root.join(path).canonicalize()
+#[get("/tree?<depth>")]
+pub fn get_root_tree(depth: Option<u32>) -> Result<Json<Vec<TreeEntry>>, ResponseStatus> {
+    get_tree(PathBuf::from("/"), depth)
 }
 
-#[get("/api/tree/<root..>?<depth>")]
-fn tree(root: PathBuf, depth: Option<u32>) -> Result<Json<Vec<TreeEntry>>, BadRequest<String>> {
-    let depth = depth.unwrap_or(32 * 1024);
-
-    let computed_root_result = from_root(root)
-        .map_err(|error| BadRequest(Some(format!("Bad path: {}", error.to_string()))));
-
-    return if computed_root_result.is_err() {
-        Err(computed_root_result.err().unwrap())
-    } else {
-        Command::new("git")
-            .arg("ls-files")
-            .output()
-            .map(|_| {
-                Json(vec![TreeEntry {
-                    name: String::from("foo"),
-                    full_path: String::from(computed_root_result.unwrap().to_str().unwrap_or("")),
-                    entry_type: EntryType::FILE,
-                    size: Option::None,
-                    children: Option::None,
-                    target: Option::None,
-                }])
-            })
-            // FIXME: BadRequest is the wrong type - it should be 500
-            .map_err(|error| BadRequest(Some(format!("Dumb failure: {}", error.to_string()))))
-    };
-}
-
-#[get("/api/tree?<depth>")]
-fn tree_root(depth: Option<u32>) -> Result<Json<Vec<TreeEntry>>, BadRequest<String>> {
-    tree(PathBuf::from("/"), depth)
+#[get("/tree/<root..>?<depth>")]
+pub fn get_child_tree(
+    root: PathBuf,
+    depth: Option<u32>,
+) -> Result<Json<Vec<TreeEntry>>, ResponseStatus> {
+    get_tree(root, depth)
 }
 
 fn main() {
     rocket::ignite()
-        .mount("/", routes![tree, tree_root])
+        .mount("/", StaticFiles::from("/static"))
+        .mount("/api", routes![get_child_tree, get_root_tree])
         .launch();
 }
