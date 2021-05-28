@@ -1,4 +1,3 @@
-use std::error::Error;
 use std::io::Cursor;
 
 use chrono::{DateTime, Utc};
@@ -6,6 +5,7 @@ use rocket::http::{ContentType, Status};
 use rocket::response::Responder;
 use rocket::{response, Request, Response};
 use serde_json::json;
+use std::fmt::Display;
 use std::time::SystemTime;
 
 #[derive(Debug)]
@@ -15,11 +15,15 @@ pub struct ResponseStatus {
 }
 
 impl ResponseStatus {
-    pub fn from(error: Box<dyn Error>) -> Self {
+    pub fn internal_server_error(message: String) -> Self {
         ResponseStatus {
             status: Status::InternalServerError,
-            message: error.to_string(),
+            message,
         }
+    }
+
+    pub fn from<T: Display>(error: T) -> Self {
+        ResponseStatus::internal_server_error(error.to_string())
     }
 }
 

@@ -2,6 +2,10 @@ GET http://localhost:8000/api/tree
 
 ###
 
+GET http://localhost:8000/api/tree?depth=2
+
+####
+
 GET http://localhost:8000/api/tree/foobar
 
 ###
@@ -10,4 +14,4 @@ GET http://localhost:8000/api/tree/readme.md
 
 ###
 
-GET http://localhost:8000/api/tree/libraries
+GET http://localhost:8000/api/tree/libraries?depth=1

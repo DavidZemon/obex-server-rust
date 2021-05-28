@@ -20,7 +20,7 @@ mod utils;
 
 #[get("/tree?<depth>")]
 pub fn get_root_tree(depth: Option<u32>) -> Result<Json<Vec<TreeEntry>>, ResponseStatus> {
-    get_tree(PathBuf::from("."), depth)
+    get_tree(PathBuf::from(""), depth)
 }
 
 #[get("/tree/<root..>?<depth>")]
