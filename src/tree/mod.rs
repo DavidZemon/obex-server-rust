@@ -1,12 +1,12 @@
 use std::env;
-use std::fs::{read_dir, read_link, DirEntry, FileType, Metadata};
+use std::fs::{read_dir, read_link, FileType};
 use std::path::PathBuf;
 use std::str::from_utf8;
 
 use rocket::http::Status;
 use rocket_contrib::json::Json;
 
-use crate::models::{EntryType, TreeEntry};
+use crate::models::TreeEntry;
 use crate::response_status::ResponseStatus;
 use crate::utils::run;
 
@@ -27,19 +27,12 @@ pub fn get_tree(root: PathBuf, depth: Option<u32>) -> Result<Json<Vec<TreeEntry>
         })
         .and_then(|(absolute_root, output)| {
             if output.status.success() {
-                Ok((
-                    absolute_root,
-                    String::from(from_utf8(&output.stdout).unwrap_or("")),
-                ))
+                Ok((absolute_root, String::from(from_utf8(&output.stdout).unwrap_or(""))))
             } else {
-                Err(ResponseStatus {
-                    status: Status::InternalServerError,
-                    message: format!(
-                        "Failed to execute 'git ls-files' due to: {}",
-                        from_utf8(&output.stderr)
-                            .unwrap_or("Error message not available due to non-UTF8 characters")
-                    ),
-                })
+                Err(ResponseStatus::internal_server_error(format!(
+                    "Failed to execute 'git ls-files' due to: {}",
+                    from_utf8(&output.stderr).unwrap_or("Error message not available due to non-UTF8 characters")
+                )))
             }
         })
         .and_then(|(absolute_root, files_in_git)| {
@@ -69,92 +62,41 @@ fn process_tree(
                 let full_path_str = String::from(full_path_buf.to_str().unwrap_or(""));
                 if should_generate_tree_entry(dir_entry_type, include_list, full_path_str.clone()) {
                     if dir_entry_type.is_symlink() {
-                        Ok(Some(build_symlink_entry(&dir_entry, full_path_str)))
+                        results.push(TreeEntry::symlink(
+                            String::from(dir_entry.file_name().to_str().unwrap()),
+                            full_path_str.clone(),
+                            read_link(dir_entry.path())?,
+                        ))
                     } else if dir_entry_type.is_dir() {
-                        Ok(Some(build_dir_tree_entry(
-                            absolute_root,
-                            include_list,
-                            depth,
-                            &dir_entry,
-                            &full_path_buf,
+                        results.push(TreeEntry::folder(
+                            String::from(dir_entry.file_name().to_str().unwrap()),
                             full_path_str,
-                        )?))
+                            if depth == 0 {
+                                None
+                            } else {
+                                Some(process_tree(
+                                    &absolute_root.join(dir_entry.path()),
+                                    &full_path_buf,
+                                    include_list,
+                                    depth - 1,
+                                )?)
+                            },
+                        ))
                     } else if dir_entry_type.is_file() {
-                        Ok(Some(build_file_entry(
-                            &dir_entry,
-                            full_path_str,
-                            dir_entry.metadata()?,
-                        )))
-                    } else {
-                        Ok(None)
+                        results.push(TreeEntry::file(
+                            String::from(dir_entry.file_name().to_str().unwrap()),
+                            full_path_str.clone(),
+                            dir_entry.metadata()?.len(),
+                        ))
                     }
                 } else {
                     println!("Ignoring directory entry: {}", full_path_str);
-                    Ok(None)
-                }?
-                    .map(|tree_entry| results.push(tree_entry));
+                }
             }
             Ok(results)
         })
 }
 
-fn should_generate_tree_entry(
-    dir_entry_type: FileType,
-    include_list: &Vec<&str>,
-    full_path_str: String,
-) -> bool {
-    full_path_str != ".git"
-        && (dir_entry_type.is_dir() || include_list.contains(&full_path_str.as_str()))
-}
-
-fn build_symlink_entry(entry: &DirEntry, full_path: String) -> TreeEntry {
-    TreeEntry {
-        name: String::from(entry.file_name().to_str().unwrap()),
-        full_path,
-        entry_type: EntryType::SYMLINK,
-        target: Some(match read_link(entry.path()) {
-            Ok(target) => String::from(target.to_str().unwrap_or("")),
-            Err(_) => String::from("INVALID SYMLINK"),
-        }),
-        children: None,
-        size: None,
-    }
-}
-
-fn build_dir_tree_entry(
-    absolute_root: &PathBuf,
-    include_list: &Vec<&str>,
-    depth: u32,
-    entry: &DirEntry,
-    full_path: &PathBuf,
-    full_path_str: String,
-) -> Result<TreeEntry, ResponseStatus> {
-    Ok(TreeEntry {
-        name: String::from(entry.file_name().to_str().unwrap()),
-        full_path: full_path_str,
-        entry_type: EntryType::FOLDER,
-        children: if depth == 0 {
-            None
-        } else {
-            Some(process_tree(
-                &absolute_root.join(entry.path()),
-                &full_path,
-                include_list,
-                depth - 1,
-            )?)
-        },
-        target: None,
-        size: None,
-    })
-}
-
-fn build_file_entry(entry: &DirEntry, full_path: String, metadata: Metadata) -> TreeEntry {
-    TreeEntry {
-        name: String::from(entry.file_name().to_str().unwrap()),
-        full_path,
-        entry_type: EntryType::FILE,
-        size: Some(metadata.len()),
-        target: None,
-        children: None,
-    }
+fn should_generate_tree_entry(dir_entry_type: FileType, include_list: &Vec<&str>, full_path_str: String) -> bool {
+    full_path_str != ".git" && (dir_entry_type.is_dir() || include_list.contains(&full_path_str.as_str()))
 }
