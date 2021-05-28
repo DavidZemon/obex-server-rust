@@ -1,13 +1,13 @@
 use serde::Serialize;
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone, Copy)]
 pub enum EntryType {
     FILE,
     SYMLINK,
     FOLDER,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct TreeEntry {
     pub name: String,
     pub full_path: String,

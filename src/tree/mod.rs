@@ -61,7 +61,7 @@ fn process_tree(
     include_list: Vec<&str>,
     depth: u32,
 ) -> Result<Vec<TreeEntry>, ResponseStatus> {
-    read_dir(absolute_root)
+    read_dir(absolute_root.clone())
         .map_err(|error| ResponseStatus {
             status: Status::InternalServerError,
             message: error.to_string(),
@@ -78,12 +78,13 @@ fn process_tree(
                             String::from(root.join(entry.file_name()).to_str().unwrap_or(""));
                     }
 
-                    if include_list.contains(&full_path.as_str()) {
-                        if let Ok(file_type) = entry.file_type() {
+                    if let Ok(file_type) = entry.file_type() {
+                        if file_type.is_dir() || include_list.contains(&full_path.clone().as_str())
+                        {
                             if file_type.is_symlink() {
                                 results.push(TreeEntry {
                                     name: String::from(entry.file_name().to_str().unwrap()),
-                                    full_path,
+                                    full_path: full_path.clone(),
                                     entry_type: EntryType::SYMLINK,
                                     target: Some(match read_link(entry.path()) {
                                         Ok(target) => String::from(target.to_str().unwrap_or("")),
@@ -93,7 +94,28 @@ fn process_tree(
                                     size: None,
                                 })
                             } else if file_type.is_dir() {
-                                // TODO: Implement recursive directory
+                                let children = process_tree(
+                                    absolute_root.clone().join(entry.path()),
+                                    PathBuf::from(full_path.clone()),
+                                    include_list.clone(),
+                                    depth - 1,
+                                );
+
+                                if children.is_ok() {
+                                    let children = children.unwrap();
+                                    results.push(TreeEntry {
+                                        name: String::from(entry.file_name().to_str().unwrap()),
+                                        full_path: full_path.clone(),
+                                        entry_type: EntryType::FOLDER,
+                                        children: if children.clone().len() == 0 {
+                                            None
+                                        } else {
+                                            Some(children)
+                                        },
+                                        target: None,
+                                        size: None,
+                                    });
+                                }
                             } else if file_type.is_file() {
                                 match entry.metadata() {
                                     Ok(metadata) => results.push(TreeEntry {
@@ -107,12 +129,12 @@ fn process_tree(
                                     Err(error) => {
                                         eprintln!(
                                             "Failed to check size of file {}: {}",
-                                            full_path,
+                                            full_path.clone(),
                                             error.to_string()
                                         );
                                         results.push(TreeEntry {
                                             name: String::from(entry.file_name().to_str().unwrap()),
-                                            full_path,
+                                            full_path: full_path.clone(),
                                             entry_type: EntryType::FILE,
                                             size: Some(0),
                                             target: None,
@@ -125,7 +147,7 @@ fn process_tree(
                     } else {
                         println!(
                             "Ignoring path because it is not in the whitelist: {}",
-                            full_path
+                            full_path.clone()
                         )
                     }
                 }
