@@ -27,11 +27,15 @@ pub fn get_tree(root: PathBuf, depth: Option<u32>) -> Result<Json<Vec<TreeEntry>
         })
         .and_then(|(absolute_root, output)| {
             if output.status.success() {
-                Ok((absolute_root, String::from(from_utf8(&output.stdout).unwrap_or(""))))
+                Ok((
+                    absolute_root,
+                    String::from(from_utf8(&output.stdout).unwrap_or("")),
+                ))
             } else {
                 Err(ResponseStatus::internal_server_error(format!(
                     "Failed to execute 'git ls-files' due to: {}",
-                    from_utf8(&output.stderr).unwrap_or("Error message not available due to non-UTF8 characters")
+                    from_utf8(&output.stderr)
+                        .unwrap_or("Error message not available due to non-UTF8 characters")
                 )))
             }
         })
@@ -97,6 +101,11 @@ fn process_tree(
         })
 }
 
-fn should_generate_tree_entry(dir_entry_type: FileType, include_list: &Vec<&str>, full_path_str: String) -> bool {
-    full_path_str != ".git" && (dir_entry_type.is_dir() || include_list.contains(&full_path_str.as_str()))
+fn should_generate_tree_entry(
+    dir_entry_type: FileType,
+    include_list: &Vec<&str>,
+    full_path_str: String,
+) -> bool {
+    full_path_str != ".git"
+        && (dir_entry_type.is_dir() || include_list.contains(&full_path_str.as_str()))
 }
