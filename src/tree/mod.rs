@@ -63,49 +63,39 @@ fn process_tree(
         .and_then(|entries| {
             let mut results: Vec<TreeEntry> = Vec::new();
             for dir_entry in entries {
-                process_dir_entry(&dir_entry?, absolute_root, root, include_list, depth)?
+                let dir_entry = &dir_entry?;
+                let dir_entry_type = dir_entry.file_type()?;
+                let full_path_buf = root.join(dir_entry.file_name());
+                let full_path_str = String::from(full_path_buf.to_str().unwrap_or(""));
+                if should_generate_tree_entry(dir_entry_type, include_list, full_path_str.clone()) {
+                    if dir_entry_type.is_symlink() {
+                        Ok(Some(build_symlink_entry(&dir_entry, full_path_str)))
+                    } else if dir_entry_type.is_dir() {
+                        Ok(Some(build_dir_tree_entry(
+                            absolute_root,
+                            include_list,
+                            depth,
+                            &dir_entry,
+                            &full_path_buf,
+                            full_path_str,
+                        )?))
+                    } else if dir_entry_type.is_file() {
+                        Ok(Some(build_file_entry(
+                            &dir_entry,
+                            full_path_str,
+                            dir_entry.metadata()?,
+                        )))
+                    } else {
+                        Ok(None)
+                    }
+                } else {
+                    println!("Ignoring directory entry: {}", full_path_str);
+                    Ok(None)
+                }?
                     .map(|tree_entry| results.push(tree_entry));
             }
             Ok(results)
         })
-}
-
-fn process_dir_entry(
-    dir_entry: &DirEntry,
-    absolute_root: &PathBuf,
-    root: &PathBuf,
-    include_list: &Vec<&str>,
-    depth: u32,
-) -> Result<Option<TreeEntry>, ResponseStatus> {
-    let dir_entry_type = dir_entry.file_type()?;
-    let full_path = root.join(dir_entry.file_name());
-    let full_path_str = String::from(full_path.to_str().unwrap_or(""));
-
-    return if should_generate_tree_entry(dir_entry_type, include_list, full_path_str.clone()) {
-        if dir_entry_type.is_symlink() {
-            Ok(Some(build_symlink_entry(&dir_entry, full_path_str)))
-        } else if dir_entry_type.is_dir() {
-            Ok(Some(build_dir_tree_entry(
-                absolute_root,
-                include_list,
-                depth,
-                &dir_entry,
-                &full_path,
-                full_path_str,
-            )?))
-        } else if dir_entry_type.is_file() {
-            Ok(Some(build_file_entry(
-                &dir_entry,
-                full_path_str,
-                dir_entry.metadata()?,
-            )))
-        } else {
-            Ok(None)
-        }
-    } else {
-        println!("Ignoring directory entry: {}", full_path_str);
-        Ok(None)
-    };
 }
 
 fn should_generate_tree_entry(
