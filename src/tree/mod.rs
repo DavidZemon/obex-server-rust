@@ -7,6 +7,7 @@ use rocket_contrib::json::Json;
 use crate::models::{EntryType, TreeEntry};
 use crate::response_status::ResponseStatus;
 use crate::utils::run;
+use std::fs::{read_dir, read_link};
 use std::str::from_utf8;
 
 const DEFAULT_OBEX_ROOT: &str = "/tmp/obex";
@@ -41,23 +42,83 @@ pub fn get_tree(root: PathBuf, depth: Option<u32>) -> Result<Json<Vec<TreeEntry>
                 })
             }
         })
-        .map(|(computed_root, files_output)| {
-            let lines: Vec<&str> = files_output.split("\n").collect();
-            for line in lines {
-                println!("{}", line.trim())
+        .and_then(|(computed_root, files_in_git)| {
+            let lines: Vec<&str> = files_in_git.split("\n").collect();
+            match process_tree(computed_root, lines, depth) {
+                Ok(trees) => Ok(Json(trees)),
+                Err(error) => Err(error),
             }
-
-            Json(vec![TreeEntry {
-                name: String::from("foo"),
-                full_path: String::from(computed_root.to_str().unwrap_or("")),
-                entry_type: EntryType::FILE,
-                size: Option::None,
-                children: Option::None,
-                target: Option::None,
-            }])
         })
 }
 
 fn obex_path() -> PathBuf {
     PathBuf::from(env::var("OBEX_ROOT").unwrap_or(String::from(DEFAULT_OBEX_ROOT)))
+}
+
+fn process_tree(
+    path: PathBuf,
+    include_list: Vec<&str>,
+    depth: u32,
+) -> Result<Vec<TreeEntry>, ResponseStatus> {
+    read_dir(path.clone())
+        .map_err(|error| ResponseStatus {
+            status: Status::InternalServerError,
+            message: error.to_string(),
+        })
+        .map(|entries| {
+            let mut results: Vec<TreeEntry> = Vec::new();
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let full_path =
+                        String::from(path.join(entry.file_name()).to_str().unwrap_or(""));
+
+                    if include_list.contains(&full_path.as_str()) {
+                        if let Ok(file_type) = entry.file_type() {
+                            if file_type.is_symlink() {
+                                results.push(TreeEntry {
+                                    name: String::from(entry.file_name().to_str().unwrap()),
+                                    full_path,
+                                    entry_type: EntryType::SYMLINK,
+                                    target: Some(match read_link(entry.path()) {
+                                        Ok(target) => String::from(target.to_str().unwrap_or("")),
+                                        Err(_) => String::from("INVALID SYMLINK"),
+                                    }),
+                                    children: None,
+                                    size: None,
+                                })
+                            } else if file_type.is_dir() {
+                                // TODO: Implement recursive directory
+                            } else if file_type.is_file() {
+                                match entry.metadata() {
+                                    Ok(metadata) => results.push(TreeEntry {
+                                        name: String::from(entry.file_name().to_str().unwrap()),
+                                        full_path,
+                                        entry_type: EntryType::FILE,
+                                        size: Some(metadata.len()),
+                                        target: None,
+                                        children: None,
+                                    }),
+                                    Err(error) => {
+                                        eprintln!(
+                                            "Failed to check size of file {}: {}",
+                                            full_path,
+                                            error.to_string()
+                                        );
+                                        results.push(TreeEntry {
+                                            name: String::from(entry.file_name().to_str().unwrap()),
+                                            full_path,
+                                            entry_type: EntryType::FILE,
+                                            size: Some(0),
+                                            target: None,
+                                            children: None,
+                                        })
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            return results;
+        })
 }
