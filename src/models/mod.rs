@@ -1,5 +1,7 @@
-use serde::Serialize;
+use std::ffi::OsString;
 use std::path::PathBuf;
+
+use serde::Serialize;
 
 #[derive(Serialize, Clone, Copy, Debug)]
 pub enum EntryType {
@@ -19,9 +21,9 @@ pub struct TreeEntry {
 }
 
 impl TreeEntry {
-    pub fn symlink(name: String, full_path: String, target: PathBuf) -> Self {
+    pub fn symlink(name: OsString, full_path: String, target: PathBuf) -> Self {
         TreeEntry {
-            name,
+            name: String::from(name.to_str().unwrap()),
             full_path,
             entry_type: EntryType::SYMLINK,
             size: None,
@@ -30,9 +32,9 @@ impl TreeEntry {
         }
     }
 
-    pub fn folder(name: String, full_path: String, children: Option<Vec<TreeEntry>>) -> Self {
+    pub fn folder(name: OsString, full_path: String, children: Option<Vec<TreeEntry>>) -> Self {
         TreeEntry {
-            name,
+            name: String::from(name.to_str().unwrap()),
             full_path,
             entry_type: EntryType::FOLDER,
             size: None,
@@ -41,9 +43,9 @@ impl TreeEntry {
         }
     }
 
-    pub fn file(name: String, full_path: String, size: u64) -> Self {
+    pub fn file(name: OsString, full_path: String, size: u64) -> Self {
         TreeEntry {
-            name,
+            name: String::from(name.to_str().unwrap()),
             full_path,
             entry_type: EntryType::FILE,
             size: Some(size),

@@ -1,4 +1,4 @@
-use std::fs::{read_dir, read_link, FileType};
+use std::fs::{read_dir, read_link};
 use std::path::Path;
 use std::str::from_utf8;
 
@@ -58,24 +58,20 @@ impl<'a> TreeShaker<'a> {
             .and_then(|entries| {
                 let mut results: Vec<TreeEntry> = Vec::new();
                 for dir_entry in entries {
-                    let dir_entry = &dir_entry?;
-                    let dir_entry_type = dir_entry.file_type()?;
-                    let full_path_buf = root.join(dir_entry.file_name());
+                    let entry = &dir_entry?;
+                    let entry_name = entry.file_name();
+                    let entry_type = entry.file_type()?;
+                    let full_path_buf = root.join(&entry_name);
                     let full_path_str = String::from(full_path_buf.to_str().unwrap_or(""));
-                    if TreeShaker::should_generate_tree_entry(
-                        dir_entry_type,
-                        include_list,
-                        full_path_str.as_str(),
-                    ) {
-                        if dir_entry_type.is_symlink() {
-                            results.push(TreeEntry::symlink(
-                                String::from(dir_entry.file_name().to_str().unwrap()),
-                                full_path_str.clone(),
-                                read_link(dir_entry.path())?,
-                            ))
-                        } else if dir_entry_type.is_dir() {
+                    if full_path_str != ".git"
+                        && (entry_type.is_dir() || include_list.contains(&full_path_str.as_str()))
+                    {
+                        if entry_type.is_symlink() {
+                            let target = read_link(entry.path())?;
+                            results.push(TreeEntry::symlink(entry_name, full_path_str, target))
+                        } else if entry_type.is_dir() {
                             results.push(TreeEntry::folder(
-                                String::from(dir_entry.file_name().to_str().unwrap()),
+                                entry_name,
                                 full_path_str,
                                 if depth == 0 {
                                     None
@@ -87,12 +83,9 @@ impl<'a> TreeShaker<'a> {
                                     )?)
                                 },
                             ))
-                        } else if dir_entry_type.is_file() {
-                            results.push(TreeEntry::file(
-                                String::from(dir_entry.file_name().to_str().unwrap()),
-                                full_path_str.clone(),
-                                dir_entry.metadata()?.len(),
-                            ))
+                        } else if entry_type.is_file() {
+                            let size = entry.metadata()?.len();
+                            results.push(TreeEntry::file(entry_name, full_path_str, size))
                         }
                     } else {
                         log::info!("Ignoring directory entry: {}", full_path_str);
@@ -100,13 +93,5 @@ impl<'a> TreeShaker<'a> {
                 }
                 Ok(results)
             })
-    }
-
-    fn should_generate_tree_entry(
-        dir_entry_type: FileType,
-        include_list: &Vec<&str>,
-        full_path: &str,
-    ) -> bool {
-        full_path != ".git" && (dir_entry_type.is_dir() || include_list.contains(&full_path))
     }
 }
