@@ -95,7 +95,7 @@ impl<'a> TreeShaker<'a> {
                             ))
                         }
                     } else {
-                        println!("Ignoring directory entry: {}", full_path_str);
+                        log::info!("Ignoring directory entry: {}", full_path_str);
                     }
                 }
                 Ok(results)

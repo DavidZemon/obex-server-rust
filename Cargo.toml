@@ -9,7 +9,9 @@ edition = "2018"
 [dependencies]
 chrono = "0.4.19"
 lazy_static = "1.4.0"
+log = "0.4.14"
 rocket = "0.4.10"
 rocket_contrib = { version = "0.4.10", default-features = false, features = ["json", "serve"] }
 serde = { version = "1.0.126", features = ["derive"] }
 serde_json = "1.0.64"
+simple_logger = "1.11.0"

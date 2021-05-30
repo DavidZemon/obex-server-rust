@@ -17,6 +17,8 @@ use tree::TreeShaker;
 
 use crate::models::TreeEntry;
 use crate::response_status::ResponseStatus;
+use log::LevelFilter;
+use simple_logger::SimpleLogger;
 
 mod models;
 mod response_status;
@@ -47,6 +49,12 @@ pub fn get_child_tree(
 }
 
 fn main() {
+    SimpleLogger::new()
+        .with_level(LevelFilter::Info)
+        .with_module_level("obex-server-rust", LevelFilter::Debug)
+        .init()
+        .unwrap();
+
     let obex_path = Path::new(
         OBEX_ROOT_OVERRIDE
             .as_ref()

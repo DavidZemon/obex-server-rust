@@ -37,7 +37,7 @@ impl<'r> Responder<'r> for ResponseStatus {
     fn respond_to(self, _: &Request) -> response::Result<'r> {
         let now: DateTime<Utc> = SystemTime::now().into();
         if self.status == Status::InternalServerError {
-            eprintln!("An unexpected error occurred: {}", self.message)
+            log::error!("An unexpected error occurred: {}", self.message)
         }
 
         Response::build()
