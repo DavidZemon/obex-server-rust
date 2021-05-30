@@ -3,9 +3,9 @@ use std::process::{Command, Output};
 use rocket::http::Status;
 
 use crate::response_status::ResponseStatus;
-use std::path::PathBuf;
+use std::path::Path;
 
-pub fn run(cwd: PathBuf, command: &str, args: Vec<&str>) -> Result<Output, ResponseStatus> {
+pub fn run(cwd: &Path, command: &str, args: Vec<&str>) -> Result<Output, ResponseStatus> {
     Command::new(command)
         .args(&args)
         .current_dir(cwd)
