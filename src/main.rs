@@ -15,15 +15,16 @@ use rocket_contrib::serve::StaticFiles;
 
 use tree::TreeShaker;
 
+use crate::cmd::Cmd;
 use crate::models::TreeEntry;
 use crate::response_status::ResponseStatus;
 use log::LevelFilter;
 use simple_logger::SimpleLogger;
 
+mod cmd;
 mod models;
 mod response_status;
 mod tree;
-mod utils;
 
 const DEFAULT_OBEX_ROOT: &str = "/tmp/obex";
 
@@ -64,6 +65,9 @@ fn main() {
     rocket::ignite()
         .mount("/", StaticFiles::from("/static"))
         .mount("/api", routes![get_child_tree, get_root_tree])
-        .manage(TreeShaker { obex_path })
+        .manage(TreeShaker {
+            obex_path,
+            cmd: Cmd { cwd: obex_path },
+        })
         .launch();
 }

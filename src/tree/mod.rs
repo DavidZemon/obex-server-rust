@@ -5,12 +5,13 @@ use std::str::from_utf8;
 use rocket::http::Status;
 use rocket_contrib::json::Json;
 
+use crate::cmd::Cmd;
 use crate::models::TreeEntry;
 use crate::response_status::ResponseStatus;
-use crate::utils::run;
 
 pub struct TreeShaker<'a> {
     pub obex_path: &'a Path,
+    pub cmd: Cmd<'a>,
 }
 
 impl<'a> TreeShaker<'a> {
@@ -21,7 +22,8 @@ impl<'a> TreeShaker<'a> {
     ) -> Result<Json<Vec<TreeEntry>>, ResponseStatus> {
         let depth = depth.unwrap_or(32 * 1024);
 
-        run(self.obex_path, "git", Vec::from(["ls-files"]))
+        self.cmd
+            .run(vec!["git", "ls-files"])
             .and_then(|output| {
                 if output.status.success() {
                     Ok(String::from(from_utf8(&output.stdout).unwrap_or("")))
