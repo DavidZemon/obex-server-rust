@@ -1,5 +1,8 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
+#[macro_use]
+extern crate cfg_if;
+
 use std::path::PathBuf;
 
 use log::LevelFilter;

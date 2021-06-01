@@ -5,10 +5,16 @@ use std::str::from_utf8;
 use rocket::http::Status;
 use rocket_contrib::json::Json;
 
-use crate::cmd::Cmd;
 use crate::models::TreeEntry;
 use crate::response_status::ResponseStatus;
 
+cfg_if! {
+    if #[cfg(test)] {
+        use tests::MockCmd as Cmd;
+    } else {
+        use crate::cmd::Cmd;
+    }
+}
 pub struct TreeShaker {
     pub obex_path: PathBuf,
     pub cmd: Cmd,
@@ -95,5 +101,60 @@ impl TreeShaker {
                 }
                 Ok(results)
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+    use std::process::Output;
+
+    use mockall::mock;
+    use mockall::predicate;
+
+    use crate::response_status::ResponseStatus;
+    use crate::tree::TreeShaker;
+
+    extern crate spectral;
+
+    mock!(
+        pub Cmd {
+            pub fn run<'a>(&self,cmd: Vec<&'a str>,) -> Result<Output, ResponseStatus>;
+        }
+    );
+
+    mock!(
+        ExitStatus{
+            pub fn success(&self) -> bool;
+
+            pub fn code(&self) -> Option<i32>;
+        }
+    );
+
+    #[test]
+    fn get_tree_failed_git_command() {
+        let obex_path = PathBuf::from("/foo/bar");
+
+        let mock_exit_status = MockExitStatus::new();
+        mock_exit_status
+            .expect_code()
+            .times(1)
+            .returning(|| Some(42));
+        let mock_cmd = MockCmd::new();
+        mock_cmd
+            .expect_run()
+            .with(predicate::eq(vec!["git", "ls-files"]))
+            .times(1)
+            .returning(|_| {
+                Ok(Output {
+                    status: mock_exit_status,
+                    stdout: vec![],
+                    stderr: String::from("Oopsy").into_bytes(),
+                })
+            });
+        let testable = TreeShaker {
+            obex_path,
+            cmd: mock_cmd,
+        };
     }
 }
