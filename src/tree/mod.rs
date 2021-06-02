@@ -1,5 +1,5 @@
 use std::fs::{read_dir, read_link};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::str::from_utf8;
 
 use rocket::http::Status;
@@ -9,12 +9,12 @@ use crate::cmd::Cmd;
 use crate::models::TreeEntry;
 use crate::response_status::ResponseStatus;
 
-pub struct TreeShaker<'a> {
-    pub obex_path: &'a Path,
-    pub cmd: Cmd<'a>,
+pub struct TreeShaker {
+    pub obex_path: PathBuf,
+    pub cmd: Cmd,
 }
 
-impl<'a> TreeShaker<'a> {
+impl TreeShaker {
     pub fn get_tree(
         &self,
         root: &Path,
