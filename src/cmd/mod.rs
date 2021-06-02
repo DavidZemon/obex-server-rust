@@ -5,6 +5,7 @@ use rocket::http::Status;
 
 use crate::response_status::ResponseStatus;
 
+#[derive(Clone, Debug)]
 pub struct Cmd {
     pub cwd: PathBuf,
 }
