@@ -1,21 +1,35 @@
 pub mod client {
     use std::path::PathBuf;
 
-    use rocket::get;
     use rocket::response::NamedFile;
     use rocket::State;
+    use rocket::{get, routes, Route};
 
     pub struct Constants {
         pub root: PathBuf,
     }
 
+    pub fn get_static_content_routes(root: PathBuf) -> Vec<Route> {
+        let root_str = root.to_str().unwrap();
+        if root.exists() {
+            log::info!("Serving static content from {}", root_str);
+            routes![root, default]
+        } else {
+            log::info!(
+                "Static content directory not found ({}). Serving API only.",
+                root_str
+            );
+            routes![]
+        }
+    }
+
     #[get("/")]
-    pub fn root(state: State<Constants>) -> Option<NamedFile> {
+    fn root(state: State<Constants>) -> Option<NamedFile> {
         serve_file(state.root.join(PathBuf::from("index.html")))
     }
 
     #[get("/<requested_path..>")]
-    pub fn default(requested_path: PathBuf, state: State<Constants>) -> Option<NamedFile> {
+    fn default(requested_path: PathBuf, state: State<Constants>) -> Option<NamedFile> {
         let resolved_path = state.root.join(requested_path);
         if resolved_path.exists() {
             serve_file(resolved_path)

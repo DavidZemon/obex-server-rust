@@ -45,34 +45,23 @@ fn main() {
         .init()
         .unwrap();
 
-    let app = rocket::ignite()
-        .mount(
-            "/api/tree",
-            routes![routes::tree::get_child_tree, routes::tree::get_root_tree],
-        )
+    rocket::ignite()
         .manage(TreeShaker {
             obex_path: args.obex_root.clone(),
             cmd: Cmd {
                 cwd: args.obex_root,
             },
-        });
-
-    if args.static_content_root.exists() {
-        let static_content_root = args.static_content_root.canonicalize().unwrap();
-        log::info!(
-            "Serving static content from {}",
-            static_content_root.to_str().unwrap()
-        );
-        app.mount("/", routes![routes::client::root, routes::client::default])
-            .manage(routes::client::Constants {
-                root: static_content_root,
-            })
-            .launch();
-    } else {
-        log::info!(
-            "Static content directory not found ({}). Serving API only.",
-            args.static_content_root.to_str().unwrap()
-        );
-        app.launch();
-    }
+        })
+        .manage(routes::client::Constants {
+            root: args.static_content_root.clone(),
+        })
+        .mount(
+            "/api/tree",
+            routes![routes::tree::get_child_tree, routes::tree::get_root_tree],
+        )
+        .mount(
+            "/",
+            routes::client::get_static_content_routes(args.static_content_root),
+        )
+        .launch();
 }
