@@ -30,7 +30,7 @@ struct CliOpts {
     module_level: LevelFilter,
 
     #[structopt(short, long, parse(from_os_str), default_value = DEFAULT_STATIC_CONTENT_ROOT)]
-    static_content_root: PathBuf,
+    static_content: PathBuf,
 
     #[structopt(short, long, parse(from_os_str), default_value = DEFAULT_OBEX_ROOT)]
     obex_root: PathBuf,
@@ -53,7 +53,7 @@ fn main() {
             },
         })
         .manage(routes::client::Constants {
-            root: args.static_content_root.clone(),
+            root: args.static_content.clone(),
         })
         .mount(
             "/api/tree",
@@ -61,7 +61,7 @@ fn main() {
         )
         .mount(
             "/",
-            routes::client::get_static_content_routes(args.static_content_root),
+            routes::client::get_static_content_routes(args.static_content),
         )
         .launch();
 }
