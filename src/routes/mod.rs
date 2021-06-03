@@ -28,7 +28,7 @@ pub mod client {
         serve_file(state.root.join(PathBuf::from("index.html")))
     }
 
-    #[get("/<requested_path..>")]
+    #[get("/<requested_path..>", rank = 2)]
     fn default(requested_path: PathBuf, state: State<Constants>) -> Option<NamedFile> {
         let resolved_path = state.root.join(requested_path);
         if resolved_path.exists() {
@@ -54,7 +54,7 @@ pub mod tree {
     use crate::response_status::ResponseStatus;
     use crate::tree::TreeShaker;
 
-    #[get("/?<depth>")]
+    #[get("/?<depth>", rank = 1)]
     pub fn get_root_tree(
         depth: Option<u32>,
         tree_shaker: State<TreeShaker>,
@@ -62,12 +62,36 @@ pub mod tree {
         tree_shaker.get_tree(&PathBuf::from(""), depth)
     }
 
-    #[get("/<root..>?<depth>")]
+    #[get("/<root..>?<depth>", rank = 1)]
     pub fn get_child_tree(
         root: PathBuf,
         depth: Option<u32>,
         tree_shaker: State<TreeShaker>,
     ) -> Result<Json<Vec<TreeEntry>>, ResponseStatus> {
         tree_shaker.get_tree(&root, depth)
+    }
+}
+
+pub mod download {
+    use std::path::PathBuf;
+
+    use rocket::{get, State};
+
+    use crate::download::{BetterNamedFile, Downloader, UnsafePathBuf};
+    use crate::response_status::ResponseStatus;
+
+    #[get("/", rank = 1)]
+    pub fn download_root(
+        downloader: State<Downloader>,
+    ) -> Result<Option<BetterNamedFile>, ResponseStatus> {
+        downloader.download(PathBuf::from("/"))
+    }
+
+    #[get("/<path..>", rank = 1)]
+    pub fn download(
+        path: UnsafePathBuf,
+        downloader: State<Downloader>,
+    ) -> Result<Option<BetterNamedFile>, ResponseStatus> {
+        downloader.download(path.0)
     }
 }

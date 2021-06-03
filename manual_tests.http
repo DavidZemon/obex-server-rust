@@ -15,3 +15,7 @@ GET http://localhost:8000/api/tree/readme.md
 ###
 
 GET http://localhost:8000/api/tree/libraries?depth=1
+
+###
+
+GET http://localhost:8000/api/downloads/.gitattributes

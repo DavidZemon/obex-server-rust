@@ -10,9 +10,11 @@ use structopt::StructOpt;
 use tree::TreeShaker;
 
 use crate::cmd::Cmd;
+use crate::download::Downloader;
 use std::time::Duration;
 
 mod cmd;
+mod download;
 mod models;
 mod response_status;
 mod routes;
@@ -61,8 +63,11 @@ fn main() {
 
     rocket::ignite()
         .manage(TreeShaker {
-            obex_path: args.obex_root,
+            obex_path: args.obex_root.clone(),
             cmd,
+        })
+        .manage(Downloader {
+            obex_path: args.obex_root,
         })
         .manage(routes::client::Constants {
             root: args.static_content.clone(),
@@ -70,6 +75,10 @@ fn main() {
         .mount(
             "/api/tree",
             routes![routes::tree::get_child_tree, routes::tree::get_root_tree],
+        )
+        .mount(
+            "/api/downloads",
+            routes![routes::download::download_root, routes::download::download],
         )
         .mount(
             "/",
