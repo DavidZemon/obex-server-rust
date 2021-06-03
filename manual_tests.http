@@ -19,3 +19,11 @@ GET http://localhost:8000/api/tree/libraries?depth=1
 ###
 
 GET http://localhost:8000/api/downloads/.gitattributes
+
+###
+
+GET http://localhost:8000/api/downloads/libraries/community/p1/All/1-wire%20Routines.zip
+
+###
+
+GET http://localhost:8000/api/downloads/libraries/community/p1/Data%20Storage/symlink/2114%204K%20Static%20RAM%20Read-Write%20spin%20file.zip

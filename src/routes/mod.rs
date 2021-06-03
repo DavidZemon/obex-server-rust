@@ -77,13 +77,13 @@ pub mod download {
 
     use rocket::{get, State};
 
-    use crate::download::{BetterNamedFile, Downloader, UnsafePathBuf};
+    use crate::download::{DownloadResponse, Downloader, UnsafePathBuf};
     use crate::response_status::ResponseStatus;
 
     #[get("/", rank = 1)]
     pub fn download_root(
         downloader: State<Downloader>,
-    ) -> Result<Option<BetterNamedFile>, ResponseStatus> {
+    ) -> Result<DownloadResponse, ResponseStatus> {
         downloader.download(PathBuf::from("/"))
     }
 
@@ -91,7 +91,7 @@ pub mod download {
     pub fn download(
         path: UnsafePathBuf,
         downloader: State<Downloader>,
-    ) -> Result<Option<BetterNamedFile>, ResponseStatus> {
+    ) -> Result<DownloadResponse, ResponseStatus> {
         downloader.download(path.0)
     }
 }
