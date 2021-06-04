@@ -7,17 +7,11 @@ use rocket_contrib::json::Json;
 
 use crate::models::TreeEntry;
 use crate::response_status::ResponseStatus;
+use crate::traits::Runner;
 
-cfg_if! {
-    if #[cfg(test)] {
-        use tests::MockCmd as Cmd;
-    } else {
-        use crate::cmd::Cmd;
-    }
-}
 pub struct TreeShaker {
     pub obex_path: PathBuf,
-    pub cmd: Cmd,
+    pub runner: Box<dyn Runner>,
 }
 
 impl TreeShaker {
@@ -28,7 +22,7 @@ impl TreeShaker {
     ) -> Result<Json<Vec<TreeEntry>>, ResponseStatus> {
         let depth = depth.unwrap_or(32 * 1024);
 
-        self.cmd
+        self.runner
             .run(vec!["git", "ls-files"])
             .and_then(|output| {
                 if output.status.success() {
@@ -107,40 +101,24 @@ impl TreeShaker {
 #[cfg(test)]
 mod tests {
     use std::path::PathBuf;
-    use std::process::Output;
 
-    use mockall::mock;
     use mockall::predicate;
 
-    use crate::response_status::ResponseStatus;
+    use crate::traits::{MockRunner, MockWithStatus, Output};
     use crate::tree::TreeShaker;
 
     extern crate spectral;
-
-    mock!(
-        pub Cmd {
-            pub fn run<'a>(&self,cmd: Vec<&'a str>,) -> Result<Output, ResponseStatus>;
-        }
-    );
-
-    mock!(
-        ExitStatus{
-            pub fn success(&self) -> bool;
-
-            pub fn code(&self) -> Option<i32>;
-        }
-    );
 
     #[test]
     fn get_tree_failed_git_command() {
         let obex_path = PathBuf::from("/foo/bar");
 
-        let mock_exit_status = MockExitStatus::new();
+        let mock_exit_status = MockWithStatus::new();
         mock_exit_status
-            .expect_code()
+            .expect_success()
             .times(1)
-            .returning(|| Some(42));
-        let mock_cmd = MockCmd::new();
+            .returning(|| true);
+        let mock_cmd = MockRunner::new();
         mock_cmd
             .expect_run()
             .with(predicate::eq(vec!["git", "ls-files"]))
@@ -154,7 +132,7 @@ mod tests {
             });
         let testable = TreeShaker {
             obex_path,
-            cmd: mock_cmd,
+            runner: mock_cmd,
         };
     }
 }

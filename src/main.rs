@@ -1,8 +1,5 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
-#[macro_use]
-extern crate cfg_if;
-
 use std::path::PathBuf;
 
 use log::LevelFilter;
@@ -14,6 +11,7 @@ use tree::TreeShaker;
 
 use crate::cmd::Cmd;
 use crate::download::Downloader;
+use crate::traits::Runner;
 use std::time::Duration;
 
 mod cmd;
@@ -21,6 +19,7 @@ mod download;
 mod models;
 mod response_status;
 mod routes;
+mod traits;
 mod tree;
 
 const DEFAULT_OBEX_ROOT: &str = "/tmp/obex";
@@ -59,15 +58,15 @@ fn main() {
         .init()
         .unwrap();
 
-    let cmd = Cmd {
+    let cmd = Box::new(Cmd {
         cwd: args.obex_root.clone(),
-    };
+    });
     init(&args.obex_root, cmd.clone());
 
     rocket::ignite()
         .manage(TreeShaker {
             obex_path: args.obex_root.clone(),
-            cmd,
+            runner: cmd,
         })
         .manage(Downloader {
             obex_path: args.obex_root,
@@ -90,7 +89,7 @@ fn main() {
         .launch();
 }
 
-fn init(obex_root: &PathBuf, cmd: Cmd) {
+fn init(obex_root: &PathBuf, cmd: Box<dyn Runner>) {
     if !obex_root.exists() {
         std::fs::create_dir(obex_root).unwrap();
         let output = cmd

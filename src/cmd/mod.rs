@@ -11,7 +11,7 @@ pub struct Cmd {
 }
 
 impl Cmd {
-    pub fn run(&self, cmd: Vec<&str>) -> Result<Output, ResponseStatus> {
+    pub fn run<I, T>(&self, cmd: Vec<&str>) -> Result<Output, ResponseStatus> {
         let (program, args) = cmd
             .split_first()
             .ok_or_else(|| ResponseStatus::internal_server_error(String::from("")))?;
