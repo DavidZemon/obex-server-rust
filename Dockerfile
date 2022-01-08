@@ -14,7 +14,7 @@ COPY src src
 RUN cargo clean --release --color never --package obex-server \
  && cargo build --release --color never --package obex-server
 
-FROM alpine:3.12.7
+FROM alpine:3.12.9
 RUN apk add --update git git-lfs
 ENV EXE_PATH=/opt/obex/obex-server
 COPY --from=builder /opt/server/target/release/obex-server "${EXE_PATH}"

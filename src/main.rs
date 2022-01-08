@@ -1,6 +1,7 @@
 #![feature(proc_macro_hygiene, decl_macro)]
 
 use std::path::PathBuf;
+use std::thread::JoinHandle;
 
 use log::LevelFilter;
 use rocket::routes;
@@ -53,13 +54,14 @@ fn main() {
     SimpleLogger::new()
         .with_level(args.level)
         .with_module_level("obex-server-rust", args.module_level)
+        .with_utc_timestamps()
         .init()
-        .unwrap();
+        .expect("Failed to initialize logger");
 
     let cmd = Cmd {
         cwd: args.obex_root.clone(),
     };
-    init(&args.obex_root, cmd.clone());
+    init(&args.obex_root, cmd.clone(), args.update).expect("Failed to initialize Git watcher");
 
     rocket::ignite()
         .manage(TreeShaker {
@@ -87,7 +89,11 @@ fn main() {
         .launch();
 }
 
-fn init(obex_root: &PathBuf, cmd: Cmd) {
+fn init(
+    obex_root: &PathBuf,
+    cmd: Cmd,
+    update_frequency_seconds: u64,
+) -> std::io::Result<JoinHandle<()>> {
     if !obex_root.exists() {
         std::fs::create_dir(obex_root).unwrap();
         let output = cmd
@@ -108,22 +114,23 @@ fn init(obex_root: &PathBuf, cmd: Cmd) {
         }
     }
 
-    std::thread::spawn(|| {
-        let cmd = cmd; // Create a thread-local clone
-        #[allow(while_true)]
-        while true {
-            log::info!("Perform git pull");
-            let output = cmd.run(vec!["git", "pull", "--ff-only"]).unwrap();
-            let output_text = String::from_utf8(output.stdout).unwrap();
-            let error_text = String::from_utf8(output.stderr).unwrap();
-            if output.status.success() {
-                log::info!("Git pull succeeded (stdout): {}", output_text.trim_end());
-                log::info!("Git pull succeeded (stderr): {}", error_text.trim_end());
-            } else {
-                log::info!("Git failed with: {}", error_text.trim_end());
-            }
+    std::thread::Builder::new()
+        .name("Git Watcher".to_string())
+        .spawn(move || {
+            #[allow(while_true)]
+            while true {
+                log::info!("Perform git pull");
+                let output = cmd.run(vec!["git", "pull", "--ff-only"]).unwrap();
+                let output_text = String::from_utf8(output.stdout).unwrap();
+                let error_text = String::from_utf8(output.stderr).unwrap();
+                if output.status.success() {
+                    log::info!("Git pull succeeded (stdout): {}", output_text.trim_end());
+                    log::info!("Git pull succeeded (stderr): {}", error_text.trim_end());
+                } else {
+                    log::info!("Git failed with: {}", error_text.trim_end());
+                }
 
-            std::thread::sleep(Duration::from_secs(60 * 30 /* 30 minutes */));
-        }
-    });
+                std::thread::sleep(Duration::from_secs(update_frequency_seconds));
+            }
+        })
 }

@@ -85,7 +85,7 @@ impl Downloader {
     pub fn download(&self, path: PathBuf) -> Result<DownloadResponse, ResponseStatus> {
         let relative_path_str =
             urlencoding::decode(path.to_str().unwrap_or("/")).map_err(ResponseStatus::from)?;
-        let absolute_path = self.obex_path.join(Path::new(relative_path_str.as_str()));
+        let absolute_path = self.obex_path.join(Path::new(relative_path_str.as_ref()));
 
         let abs_path_without_zip =
             PathBuf::from(absolute_path.to_str().unwrap().trim_end_matches(".zip"));
